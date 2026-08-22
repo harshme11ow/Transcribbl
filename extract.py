@@ -1,85 +1,286 @@
 import re
-import cv2
-from dataclasses import asdict
+
 from form_layout import (
-    HEADER_FIELDS, COLUMNS, ROW_START_Y, ROW_HEIGHT, MAX_ROWS,
-    SKIP_FIRST_DATA_ROW, NUMERIC_FIELDS
+    HEADER_FIELDS,
+    COLUMNS,
+    ROW_START_Y,
+    ROW_HEIGHT,
+    MAX_ROWS,
+    SKIP_FIRST_DATA_ROW,
+    NUMERIC_FIELDS,
+    MANUAL_REVIEW_THRESHOLD,
 )
+
 from preprocess import prepare_crop
 
 
-def crop(image, box):
+def crop_image(
+    image,
+    box
+):
+
     x1, y1, x2, y2 = box
-    return image[y1:y2, x1:x2]
+
+    return image[
+        y1:y2,
+        x1:x2
+    ]
 
 
-def recognize_region(recognizer, image, box):
-    region = crop(image, box)
-    prepared = prepare_crop(region)
-    return recognizer.recognize(prepared)
+def recognize_region(
+    recognizer,
+    image,
+    box
+):
+
+    crop = crop_image(
+        image,
+        box
+    )
+
+    prepared = prepare_crop(
+        crop
+    )
+
+    return recognizer.recognize(
+        prepared
+    )
 
 
 def normalize_numeric(text):
-    # Conservative cleanup. Do not aggressively "correct" uncertain values.
-    cleaned = text.strip().replace(" ", "")
-    cleaned = cleaned.replace("O", "0").replace("o", "0")
-    return cleaned
+
+    return (
+        text.strip()
+        .replace(" ", "")
+        .replace("O", "0")
+        .replace("o", "0")
+    )
 
 
-def field_review_needed(field, text, confidence):
+def field_review_needed(
+    field,
+    text,
+    confidence
+):
+
     if not text:
+
         return True
 
     if field in NUMERIC_FIELDS:
-        candidate = normalize_numeric(text)
-        # Accept normal integers, decimals, or a leading minus sign.
-        if not re.fullmatch(r"-?\d+(\.\d+)?", candidate):
+
+        candidate = normalize_numeric(
+            text
+        )
+
+        if not re.fullmatch(
+            r"-?\d+(\.\d+)?",
+            candidate
+        ):
+
             return True
 
-    return confidence < 0.82
+    return (
+        confidence
+        < MANUAL_REVIEW_THRESHOLD
+    )
 
 
-def extract_page(image, recognizer, page_number=1):
+def extract_page(
+    image,
+    recognizer,
+    page_number=1,
+    progress_callback=None
+):
+
     results = []
+
     review_items = []
 
-    for field, box in HEADER_FIELDS.items():
-        r = recognize_region(recognizer, image, box)
-        results.append({
+    first_row = (
+        1
+        if SKIP_FIRST_DATA_ROW
+        else 0
+    )
+
+    total_jobs = (
+        len(HEADER_FIELDS)
+        +
+        (
+            MAX_ROWS - first_row
+        )
+        *
+        len(COLUMNS)
+    )
+
+    completed_jobs = 0
+
+
+    # -------------------------
+    # HEADER FIELDS
+    # -------------------------
+
+    for field, box in (
+        HEADER_FIELDS.items()
+    ):
+
+        recognition = (
+            recognize_region(
+                recognizer,
+                image,
+                box
+            )
+        )
+
+        item = {
+
             "page": page_number,
+
             "field": field,
+
             "row": None,
-            "text": r.text,
-            "confidence": r.confidence,
-        })
-        if field_review_needed(field, r.text, r.confidence):
-            review_items.append(results[-1])
 
-    first_row = 1 if SKIP_FIRST_DATA_ROW else 0
+            "text": recognition.text,
 
-    for row in range(first_row, MAX_ROWS):
-        y1 = ROW_START_Y + row * ROW_HEIGHT
-        y2 = y1 + ROW_HEIGHT - 1
+            "confidence": (
+                recognition.confidence
+            ),
 
-        for field, col_box in COLUMNS.items():
-            x1, _, x2, _ = col_box
-            box = (x1, y1, x2, y2)
-            r = recognize_region(recognizer, image, box)
+            "box": list(box),
+        }
 
-            # Skip truly empty cells. This is intentionally simple for v1.
-            if not r.text and r.confidence < 0.2:
-                continue
+        results.append(
+            item
+        )
 
-            item = {
-                "page": page_number,
-                "field": field,
-                "row": row,
-                "text": r.text,
-                "confidence": r.confidence,
-            }
-            results.append(item)
+        if field_review_needed(
+            field,
+            recognition.text,
+            recognition.confidence
+        ):
 
-            if field_review_needed(field, r.text, r.confidence):
-                review_items.append(item)
+            review_items.append(
+                item
+            )
 
-    return results, review_items
+        completed_jobs += 1
+
+        if progress_callback:
+
+            progress_callback(
+                completed_jobs,
+                total_jobs,
+                (
+                    "Reading "
+                    +
+                    field.replace(
+                        "_",
+                        " "
+                    )
+                )
+            )
+
+
+    # -------------------------
+    # TABLE FIELDS
+    # -------------------------
+
+    for row in range(
+        first_row,
+        MAX_ROWS
+    ):
+
+        y1 = (
+            ROW_START_Y
+            +
+            row * ROW_HEIGHT
+        )
+
+        y2 = (
+            y1
+            +
+            ROW_HEIGHT
+            -
+            1
+        )
+
+        for field, column_box in (
+            COLUMNS.items()
+        ):
+
+            x1 = column_box[0]
+            x2 = column_box[2]
+
+            box = (
+                x1,
+                y1,
+                x2,
+                y2
+            )
+
+            recognition = (
+                recognize_region(
+                    recognizer,
+                    image,
+                    box
+                )
+            )
+
+            # Empty fields still matter,
+            # but do not add obviously empty
+            # recognition noise.
+            if (
+                recognition.text
+                or
+                recognition.confidence >= 0.20
+            ):
+
+                item = {
+
+                    "page": page_number,
+
+                    "field": field,
+
+                    "row": row,
+
+                    "text": recognition.text,
+
+                    "confidence": (
+                        recognition.confidence
+                    ),
+
+                    "box": list(box),
+                }
+
+                results.append(
+                    item
+                )
+
+                if field_review_needed(
+                    field,
+                    recognition.text,
+                    recognition.confidence
+                ):
+
+                    review_items.append(
+                        item
+                    )
+
+            completed_jobs += 1
+
+            if progress_callback:
+
+                progress_callback(
+                    completed_jobs,
+                    total_jobs,
+                    (
+                        f"Reading row "
+                        f"{row + 1}: "
+                        f"{field}"
+                    )
+                )
+
+    return (
+        results,
+        review_items
+    )

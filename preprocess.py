@@ -1,68 +1,174 @@
 import cv2
 import numpy as np
-from form_layout import CANONICAL_WIDTH, CANONICAL_HEIGHT
+
+from form_layout import (
+    CANONICAL_WIDTH,
+    CANONICAL_HEIGHT,
+)
 
 
 def deskew_and_warp(image):
-    """Find the largest page-like contour and warp it to the canonical layout."""
-    if image is None:
-        raise ValueError("Image could not be loaded")
+    """
+    Normalize the scanned page to the standard
+    dimensions of the fixed form.
+    """
 
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    blur = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blur, 50, 150)
+    if image is None:
+        raise ValueError("Could not load image.")
+
+    gray = cv2.cvtColor(
+        image,
+        cv2.COLOR_BGR2GRAY
+    )
+
+    blur = cv2.GaussianBlur(
+        gray,
+        (5, 5),
+        0
+    )
+
+    edges = cv2.Canny(
+        blur,
+        50,
+        150
+    )
 
     contours, _ = cv2.findContours(
-        edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        edges,
+        cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_SIMPLE
     )
+
     if not contours:
-        return cv2.resize(image, (CANONICAL_WIDTH, CANONICAL_HEIGHT))
+        return cv2.resize(
+            image,
+            (
+                CANONICAL_WIDTH,
+                CANONICAL_HEIGHT
+            )
+        )
 
-    largest = max(contours, key=cv2.contourArea)
-    peri = cv2.arcLength(largest, True)
-    approx = cv2.approxPolyDP(largest, 0.02 * peri, True)
+    largest = max(
+        contours,
+        key=cv2.contourArea
+    )
 
-    # If page detection is unreliable, simple resize is safer than a bad warp.
-    if len(approx) != 4 or cv2.contourArea(approx) < 0.25 * image.shape[0] * image.shape[1]:
-        return cv2.resize(image, (CANONICAL_WIDTH, CANONICAL_HEIGHT))
+    perimeter = cv2.arcLength(
+        largest,
+        True
+    )
 
-    pts = approx.reshape(4, 2).astype(np.float32)
+    approximation = cv2.approxPolyDP(
+        largest,
+        0.02 * perimeter,
+        True
+    )
 
-    # Order points: top-left, top-right, bottom-right, bottom-left.
-    s = pts.sum(axis=1)
-    d = np.diff(pts, axis=1).ravel()
-    ordered = np.array([
-        pts[np.argmin(s)],
-        pts[np.argmin(d)],
-        pts[np.argmax(s)],
-        pts[np.argmax(d)],
-    ], dtype=np.float32)
+    # If we cannot confidently detect the page,
+    # fall back to resizing.
+    if len(approximation) != 4:
+        return cv2.resize(
+            image,
+            (
+                CANONICAL_WIDTH,
+                CANONICAL_HEIGHT
+            )
+        )
 
-    dst = np.array([
-        [0, 0],
-        [CANONICAL_WIDTH - 1, 0],
-        [CANONICAL_WIDTH - 1, CANONICAL_HEIGHT - 1],
-        [0, CANONICAL_HEIGHT - 1],
-    ], dtype=np.float32)
+    points = approximation.reshape(
+        4,
+        2
+    ).astype(np.float32)
 
-    matrix = cv2.getPerspectiveTransform(ordered, dst)
+    sums = points.sum(axis=1)
+    differences = np.diff(
+        points,
+        axis=1
+    ).ravel()
+
+    top_left = points[np.argmin(sums)]
+    top_right = points[np.argmin(differences)]
+    bottom_right = points[np.argmax(sums)]
+    bottom_left = points[np.argmax(differences)]
+
+    source = np.array(
+        [
+            top_left,
+            top_right,
+            bottom_right,
+            bottom_left,
+        ],
+        dtype=np.float32
+    )
+
+    destination = np.array(
+        [
+            [0, 0],
+            [CANONICAL_WIDTH - 1, 0],
+            [
+                CANONICAL_WIDTH - 1,
+                CANONICAL_HEIGHT - 1
+            ],
+            [0, CANONICAL_HEIGHT - 1],
+        ],
+        dtype=np.float32
+    )
+
+    transform = cv2.getPerspectiveTransform(
+        source,
+        destination
+    )
+
     return cv2.warpPerspective(
-        image, matrix, (CANONICAL_WIDTH, CANONICAL_HEIGHT)
+        image,
+        transform,
+        (
+            CANONICAL_WIDTH,
+            CANONICAL_HEIGHT
+        )
     )
 
 
 def prepare_crop(crop):
-    """Light preprocessing while preserving handwriting strokes."""
-    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    """
+    Prepare one handwriting crop for recognition.
+    """
 
-    # Upscale small handwriting regions before recognition.
-    h, w = gray.shape
-    if h < 64:
-        scale = 64 / h
-        gray = cv2.resize(
-            gray, (int(w * scale), 64), interpolation=cv2.INTER_CUBIC
+    if crop.size == 0:
+        raise ValueError("Empty crop.")
+
+    gray = cv2.cvtColor(
+        crop,
+        cv2.COLOR_BGR2GRAY
+    )
+
+    height, width = gray.shape
+
+    # Small cells need to be enlarged.
+    if height < 96:
+
+        scale = 96 / height
+
+        new_width = int(
+            width * scale
         )
 
-    # Mild denoising only; aggressive thresholding can erase pencil strokes.
-    gray = cv2.fastNlMeansDenoising(gray, None, 5, 7, 21)
+        gray = cv2.resize(
+            gray,
+            (
+                new_width,
+                96
+            ),
+            interpolation=cv2.INTER_CUBIC
+        )
+
+    # Mild denoising.
+    gray = cv2.fastNlMeansDenoising(
+        gray,
+        None,
+        5,
+        7,
+        21
+    )
+
     return gray

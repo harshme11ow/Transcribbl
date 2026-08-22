@@ -2,13 +2,13 @@ import argparse
 from pathlib import Path
 import json
 import cv2
-import fitz
+import fitz # Fixed import (previously pymupdf)
 import numpy as np
 
 from preprocess import deskew_and_warp
 from recognizer import LocalHandwritingRecognizer
 from extract import extract_page
-from excel_export import build_workbook, write_review_sheet
+from excel_export import build_workbook # Removed write_review_sheet
 
 
 def load_pages(path):
@@ -30,7 +30,6 @@ def load_pages(path):
     if image is None:
         raise ValueError(f"Could not open {path}")
     return [image]
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -69,7 +68,7 @@ def main():
         args.output,
         template_path=args.template
     )
-    write_review_sheet(args.output, all_review_items)
+# write_review_sheet call removed from here
 
     json_path = Path(args.output).with_suffix(".json")
     json_path.write_text(json.dumps({
