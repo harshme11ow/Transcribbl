@@ -26,10 +26,10 @@ class Card(QFrame):
 
 class Window(QMainWindow):
     def __init__(self):
-        super().__init__(); self.setWindowTitle('Transcribbl - Servidyne's Environmental Form Transcriber'); self.resize(1450,900); self.setStyleSheet(STYLE)
+        super().__init__(); self.setWindowTitle("Transcribbl - Servidyne's Environmental Form Transcriber"); self.resize(1450,900); self.setStyleSheet(STYLE)
         self.path=None; self.results=[]; self.output=None; self.worker=None
         w=QWidget(); self.setCentralWidget(w); o=QVBoxLayout(w); o.setContentsMargins(28,24,28,24); o.setSpacing(18)
-        h=QHBoxLayout(); box=QVBoxLayout(); title=QLabel('Environmental Form Transcriber'); title.setStyleSheet('font-size:25px;font-weight:700')
+        h=QHBoxLayout(); box=QVBoxLayout(); title=QLabel("Transcribbl - Servidyne's Environmental Form Transcriber"); title.setStyleSheet('font-size:25px;font-weight:700')
         sub=QLabel('Local handwriting recognition • fixed-form extraction • confidence review'); sub.setStyleSheet('color:#667085')
         box.addWidget(title); box.addWidget(sub); h.addLayout(box); h.addStretch()
         self.pick=QPushButton('Select Handwritten PDF'); self.pick.setObjectName('secondary'); self.pick.clicked.connect(self.select)
