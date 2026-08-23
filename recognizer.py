@@ -6,6 +6,8 @@ from PIL import Image
 from transformers import (
     TrOCRProcessor,
     VisionEncoderDecoderModel,
+    AutoImageProcessor,
+    RobertaTokenizer,  # We are hardcoding the exact class
 )
 
 
@@ -33,12 +35,20 @@ class LocalHandwritingRecognizer:
             f"Loading handwriting model on {self.device}"
         )
 
-        self.processor = (
-            TrOCRProcessor.from_pretrained(
-                model_name
-            )
+# Bypass AutoTokenizer entirely to stop it from hunting for sentencepiece
+        tokenizer = RobertaTokenizer.from_pretrained(
+            model_name
         )
-
+        
+        image_processor = AutoImageProcessor.from_pretrained(
+            model_name
+        )
+        
+        self.processor = TrOCRProcessor(
+            image_processor=image_processor,
+            tokenizer=tokenizer
+        )
+        
         self.model = (
             VisionEncoderDecoderModel
             .from_pretrained(
