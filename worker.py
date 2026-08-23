@@ -2,7 +2,7 @@ from pathlib import Path
 import json
 import traceback
 import cv2
-import fitz
+import pymupdf
 import numpy as np
 
 from PySide6.QtCore import (
@@ -96,7 +96,7 @@ class TranscriptionWorker(
 
         if suffix == ".pdf":
 
-            document = fitz.open(
+            document = pymupdf.open( # Updated from fitz.open
                 self.input_path
             )
 
@@ -106,7 +106,7 @@ class TranscriptionWorker(
 
                 pixmap = (
                     page.get_pixmap(
-                        matrix=fitz.Matrix(
+                        matrix=pymupdf.Matrix( # Updated from fitz.Matrix
                             2,
                             2
                         ),

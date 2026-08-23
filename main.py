@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 import json
 import cv2
-import fitz # Fixed import (previously pymupdf)
+import pymupdf # Fixed import (previously pymupdf)
 import numpy as np
 
 from preprocess import deskew_and_warp
@@ -16,13 +16,12 @@ def load_pages(path):
     suffix = path.suffix.lower()
 
     if suffix == ".pdf":
-        document = fitz.open(path)
+        document = pymupdf.open(path) # Updated from fitz
         pages = []
         for page in document:
-            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+            pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2), alpha=False) # Updated from fitz
             array = np.frombuffer(pix.samples, dtype=np.uint8)
             image = array.reshape(pix.height, pix.width, 3)
-            # PyMuPDF output is RGB; OpenCV expects BGR.
             pages.append(cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
         return pages
 
