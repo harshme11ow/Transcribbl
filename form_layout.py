@@ -1,5 +1,5 @@
-CANONICAL_WIDTH = 1584
-CANONICAL_HEIGHT = 1224
+CANONICAL_WIDTH = 1224
+CANONICAL_HEIGHT = 1584
 
 
 # -----------------------------
@@ -40,7 +40,7 @@ ROW_START_Y = 380
 ROW_HEIGHT = 31
 MAX_ROWS = 27
 
-SKIP_FIRST_DATA_ROW = True
+SKIP_FIRST_DATA_ROW = False
 
 
 # -----------------------------
