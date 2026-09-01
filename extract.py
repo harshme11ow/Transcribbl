@@ -17,21 +17,22 @@ from preprocess import prepare_crop
 def crop_image(
     image,
     box,
-    padding=12
+    padding_x=12,
+    padding_y=0
 ):
     """
-    Crops the image using the provided coordinates, adding 
-    a padding margin so handwriting ascenders and descenders 
-    are not chopped off.
+    Crops the image using the provided coordinates.
+    Horizontal padding is applied to capture word ends, but 
+    vertical padding is kept strictly to 0 to prevent the crop 
+    box from bleeding into adjacent rows, which causes TrOCR 
+    to read vertically stacked values in a single cell.
     """
-
     x1, y1, x2, y2 = box
 
-    # Add padding, ensuring we don't go out of image bounds
-    x1 = max(0, x1 - padding)
-    y1 = max(0, y1 - padding)
-    x2 = min(image.shape[1], x2 + padding)
-    y2 = min(image.shape[0], y2 + padding)
+    x1 = max(0, x1 - padding_x)
+    y1 = max(0, y1 - padding_y)
+    x2 = min(image.shape[1], x2 + padding_x)
+    y2 = min(image.shape[0], y2 + padding_y)
 
     return image[
         y1:y2,
