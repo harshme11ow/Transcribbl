@@ -7,16 +7,14 @@ from transformers import (
     TrOCRProcessor,
     VisionEncoderDecoderModel,
     AutoImageProcessor,
-    RobertaTokenizer,  # We are hardcoding the exact class
+    RobertaTokenizer,  # Swap back to the standard English tokenizer
 )
-
 
 @dataclass
 class RecognitionResult:
 
     text: str
     confidence: float
-
 
 class LocalHandwritingRecognizer:
 
@@ -35,7 +33,7 @@ class LocalHandwritingRecognizer:
             f"Loading handwriting model on {self.device}"
         )
 
-# Bypass AutoTokenizer entirely to stop it from hunting for sentencepiece
+        # Force the correct RoBERTa tokenizer to decode the text properly
         tokenizer = RobertaTokenizer.from_pretrained(
             model_name
         )
@@ -48,7 +46,7 @@ class LocalHandwritingRecognizer:
             image_processor=image_processor,
             tokenizer=tokenizer
         )
-        
+
         self.model = (
             VisionEncoderDecoderModel
             .from_pretrained(
