@@ -63,14 +63,15 @@ def prepare_crop(crop):
 
     h, w = crop.shape[:2]
     
-    # 1. Shave off the outer 2 pixels to drop printed table grid lines.
-    # When TrOCR sees thick black borders, it tries to read them and hallucinates.
-    margin = 2
-    if h > 2 * margin and w > 2 * margin:
-        crop = crop[margin:h-margin, margin:w-margin]
+    # 1. Aggressively shave off the outer pixels to drop printed table grid lines.
+    # The printed lines are thicker than 2 pixels, so we increase the margin 
+    # to 6px horizontally and 4px vertically to ensure they are completely erased.
+    margin_x = 6
+    margin_y = 4
+    if h > 2 * margin_y and w > 2 * margin_x:
+        crop = crop[margin_y:h-margin_y, margin_x:w-margin_x]
 
     # 2. Add a generous white border. TrOCR requires surrounding whitespace. 
-    # If text touches the absolute edge of the image, the model catastrophically fails.
     pad = 16
     padded = cv2.copyMakeBorder(
         crop, pad, pad, pad, pad, 
@@ -86,8 +87,7 @@ def prepare_crop(crop):
         new_width = int(width * scale)
         gray = cv2.resize(gray, (new_width, 96), interpolation=cv2.INTER_CUBIC)
 
-    # 4. Soften the denoising. 'h=5' is too strong for thin pen strokes. 
-    # Lowering to 3 cleans the background without erasing the handwriting.
+    # 4. Soften the denoising. 'h=3' cleans the background without erasing thin pen strokes.
     gray = cv2.fastNlMeansDenoising(gray, None, 3, 7, 21)
 
     return gray
