@@ -54,6 +54,32 @@ def deskew_and_warp(image):
     return cv2.warpPerspective(image, transform, (CANONICAL_WIDTH, CANONICAL_HEIGHT))
 
 
+def is_blank(crop):
+    """
+    Checks if a crop is empty (no ink) to prevent TrOCR from 
+    hallucinating text on blank cells.
+    """
+    if crop.size == 0:
+        return True
+        
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape
+    
+    # Ignore the extreme borders where stray printed grid lines might live
+    margin_y = 6
+    margin_x = 8
+    if h > 2 * margin_y and w > 2 * margin_x:
+        inner = gray[margin_y:h-margin_y, margin_x:w-margin_x]
+    else:
+        inner = gray
+        
+    # Count dark pixels (pen ink is usually much darker than 200)
+    dark_pixels = np.sum(inner < 200)
+    
+    # If there are fewer than 5 dark pixels, it's just noise/specks
+    return dark_pixels < 5
+
+
 def prepare_crop(crop):
     """
     Prepare one handwriting crop for recognition.
@@ -63,14 +89,13 @@ def prepare_crop(crop):
 
     h, w = crop.shape[:2]
     
-    # 1. Shave off the outer 3 pixels to drop printed table grid lines.
-    # Because we crop exactly to the cell boundaries, the grid lines are 
-    # right on the edge. Shaving 3 pixels ensures they are completely erased.
-    margin = 3
-    if h > 2 * margin and w > 2 * margin:
-        crop = crop[margin:h-margin, margin:w-margin]
+    # 1. Shave off the outer pixels to drop printed table grid lines.
+    margin_x = 4
+    margin_y = 4
+    if h > 2 * margin_y and w > 2 * margin_x:
+        crop = crop[margin_y:h-margin_y, margin_x:w-margin_x]
 
-    # 2. Add a generous white border. TrOCR requires surrounding whitespace. 
+    # 2. Add a generous white border. 
     pad = 16
     padded = cv2.copyMakeBorder(
         crop, pad, pad, pad, pad, 
@@ -86,7 +111,7 @@ def prepare_crop(crop):
         new_width = int(width * scale)
         gray = cv2.resize(gray, (new_width, 96), interpolation=cv2.INTER_CUBIC)
 
-    # 4. Soften the denoising. 'h=3' cleans the background without erasing thin pen strokes.
+    # 4. Soften the denoising. 
     gray = cv2.fastNlMeansDenoising(gray, None, 3, 7, 21)
 
     return gray

@@ -11,20 +11,21 @@ from form_layout import (
     MANUAL_REVIEW_THRESHOLD,
 )
 
-from preprocess import prepare_crop
+from preprocess import prepare_crop, is_blank
 
 
 def crop_image(
     image,
-    box
+    box,
+    padding_x=0,
+    padding_y=0
 ):
-    """
-    Crops the image using the exact provided coordinates.
-    Horizontal padding has been removed so we don't capture
-    the vertical grid lines of adjacent cells.
-    """
-
     x1, y1, x2, y2 = box
+
+    x1 = max(0, x1 - padding_x)
+    y1 = max(0, y1 - padding_y)
+    x2 = min(image.shape[1], x2 + padding_x)
+    y2 = min(image.shape[0], y2 + padding_y)
 
     return image[
         y1:y2,
@@ -35,13 +36,23 @@ def crop_image(
 def recognize_region(
     recognizer,
     image,
-    box
+    box,
+    padding_x=0,
+    padding_y=0
 ):
-
     crop = crop_image(
         image,
-        box
+        box,
+        padding_x,
+        padding_y
     )
+    
+    # If the cell is empty, bypass TrOCR to stop hallucinations
+    if is_blank(crop):
+        class EmptyResult:
+            text = ""
+            confidence = 1.0
+        return EmptyResult()
 
     prepared = prepare_crop(
         crop
@@ -128,61 +139,36 @@ def extract_page(
     for field, box in (
         HEADER_FIELDS.items()
     ):
-
-        recognition = (
-            recognize_region(
-                recognizer,
-                image,
-                box
-            )
+        # Headers need generous padding so ascenders/descenders are not cut off
+        recognition = recognize_region(
+            recognizer,
+            image,
+            box,
+            padding_x=12,
+            padding_y=12
         )
 
         item = {
-
             "page": page_number,
-
             "field": field,
-
             "row": None,
-
             "text": recognition.text,
-
-            "confidence": (
-                recognition.confidence
-            ),
-
+            "confidence": recognition.confidence,
             "box": list(box),
         }
 
-        results.append(
-            item
-        )
+        results.append(item)
 
-        if field_review_needed(
-            field,
-            recognition.text,
-            recognition.confidence
-        ):
-
-            review_items.append(
-                item
-            )
+        if field_review_needed(field, recognition.text, recognition.confidence):
+            review_items.append(item)
 
         completed_jobs += 1
 
         if progress_callback:
-
             progress_callback(
                 completed_jobs,
                 total_jobs,
-                (
-                    "Reading "
-                    +
-                    field.replace(
-                        "_",
-                        " "
-                    )
-                )
+                "Reading " + field.replace("_", " ")
             )
 
 
@@ -223,66 +209,38 @@ def extract_page(
                 y2
             )
 
-            recognition = (
-                recognize_region(
-                    recognizer,
-                    image,
-                    box
-                )
+            # Tables use strictly 0 padding so they don't capture adjacent grid lines
+            recognition = recognize_region(
+                recognizer,
+                image,
+                box,
+                padding_x=0,
+                padding_y=0
             )
 
-            # Empty fields still matter,
-            # but do not add obviously empty
-            # recognition noise.
-            if (
-                recognition.text
-                or
-                recognition.confidence >= 0.20
-            ):
+            if recognition.text or recognition.confidence >= 0.20:
 
                 item = {
-
                     "page": page_number,
-
                     "field": field,
-
                     "row": row,
-
                     "text": recognition.text,
-
-                    "confidence": (
-                        recognition.confidence
-                    ),
-
+                    "confidence": recognition.confidence,
                     "box": list(box),
                 }
 
-                results.append(
-                    item
-                )
+                results.append(item)
 
-                if field_review_needed(
-                    field,
-                    recognition.text,
-                    recognition.confidence
-                ):
-
-                    review_items.append(
-                        item
-                    )
+                if field_review_needed(field, recognition.text, recognition.confidence):
+                    review_items.append(item)
 
             completed_jobs += 1
 
             if progress_callback:
-
                 progress_callback(
                     completed_jobs,
                     total_jobs,
-                    (
-                        f"Reading row "
-                        f"{row + 1}: "
-                        f"{field}"
-                    )
+                    f"Reading row {row + 1}: {field}"
                 )
 
     return (
