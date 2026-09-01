@@ -16,10 +16,22 @@ from preprocess import prepare_crop
 
 def crop_image(
     image,
-    box
+    box,
+    padding=12
 ):
+    """
+    Crops the image using the provided coordinates, adding 
+    a padding margin so handwriting ascenders and descenders 
+    are not chopped off.
+    """
 
     x1, y1, x2, y2 = box
+
+    # Add padding, ensuring we don't go out of image bounds
+    x1 = max(0, x1 - padding)
+    y1 = max(0, y1 - padding)
+    x2 = min(image.shape[1], x2 + padding)
+    y2 = min(image.shape[0], y2 + padding)
 
     return image[
         y1:y2,
@@ -190,26 +202,26 @@ def extract_page(
         MAX_ROWS
     ):
 
-        y1 = round(
+        y1 = int(round(
             ROW_START_Y
             +
             row * ROW_HEIGHT
-        )
+        ))
 
-        y2 = round(
+        y2 = int(round(
             y1
             +
             ROW_HEIGHT
             -
             1
-        )
+        ))
 
         for field, column_box in (
             COLUMNS.items()
         ):
 
-            x1 = column_box[0]
-            x2 = column_box[2]
+            x1 = int(column_box[0])
+            x2 = int(column_box[2])
 
             box = (
                 x1,

@@ -70,16 +70,6 @@ def deskew_and_warp(image):
         image.shape[1]
     )
 
-    # A real page boundary should cover almost the whole
-    # frame. If the largest 4-sided contour we found is
-    # much smaller than that, it's not the page - it's some
-    # other strong rectangular feature on the page (e.g. the
-    # data table's own border, which is common on clean,
-    # borderless forms where the true page edge has no ink
-    # for Canny to detect). Trusting it there would warp
-    # just that interior region to fill the whole canonical
-    # frame, scrambling every fixed-coordinate crop that
-    # follows. Fall back to a plain resize instead.
     MIN_PAGE_AREA_FRACTION = 0.85
 
     area_fraction = (
@@ -163,38 +153,12 @@ def prepare_crop(crop):
     if crop.size == 0:
         raise ValueError("Empty crop.")
 
-    gray = cv2.cvtColor(
+    # TrOCR is highly robust to background noise but extremely 
+    # sensitive to destroyed pen strokes. We remove the destructive 
+    # denoising and simply pass the clean RGB array to the model.
+    rgb = cv2.cvtColor(
         crop,
-        cv2.COLOR_BGR2GRAY
+        cv2.COLOR_BGR2RGB
     )
 
-    height, width = gray.shape
-
-    # Small cells need to be enlarged.
-    if height < 96:
-
-        scale = 96 / height
-
-        new_width = int(
-            width * scale
-        )
-
-        gray = cv2.resize(
-            gray,
-            (
-                new_width,
-                96
-            ),
-            interpolation=cv2.INTER_CUBIC
-        )
-
-    # Mild denoising.
-    gray = cv2.fastNlMeansDenoising(
-        gray,
-        None,
-        5,
-        7,
-        21
-    )
-
-    return gray
+    return rgb
