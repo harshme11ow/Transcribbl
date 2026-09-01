@@ -4,23 +4,15 @@ import traceback
 import cv2
 import pymupdf
 import numpy as np
+from PIL import Image
 
 from PySide6.QtCore import (
     QThread,
     Signal,
 )
 
-from preprocess import (
-    deskew_and_warp
-)
-
-from recognizer import (
-    LocalHandwritingRecognizer
-)
-
-from extract import (
-    extract_page
-)
+# Import the new cloud-based VLM recognizer
+from cloud_recognizer import CloudFormRecognizer
 
 from excel_export import (
     build_workbook
@@ -96,7 +88,7 @@ class TranscriptionWorker(
 
         if suffix == ".pdf":
 
-            document = pymupdf.open( # Updated from fitz.open
+            document = pymupdf.open(
                 self.input_path
             )
 
@@ -106,7 +98,7 @@ class TranscriptionWorker(
 
                 pixmap = (
                     page.get_pixmap(
-                        matrix=pymupdf.Matrix( # Updated from fitz.Matrix
+                        matrix=pymupdf.Matrix(
                             2,
                             2
                         ),
@@ -159,7 +151,7 @@ class TranscriptionWorker(
             # -----------------
 
             self.progress.emit(
-                2,
+                5,
                 "Loading form"
             )
 
@@ -167,133 +159,84 @@ class TranscriptionWorker(
                 self.load_pages()
             )
 
+            if not pages:
+                raise ValueError("No pages found in document.")
+
+            # Send the uncropped, raw first page directly to the GUI preview
+            first_page_bgr = pages[0]
+            self.preview_ready.emit(first_page_bgr)
+            self.pages_ready.emit(pages)
+
 
             # -----------------
-            # LOAD MODEL
+            # CLOUD API
             # -----------------
 
             self.progress.emit(
-                5,
-                "Loading local handwriting model"
+                15,
+                "Connecting to Vision API"
             )
 
             self.status.emit(
-                "Loading TrOCR locally..."
+                "Analyzing document layout and handwriting via API..."
             )
 
-            recognizer = (
-                LocalHandwritingRecognizer()
+            recognizer = CloudFormRecognizer()
+
+            # Convert OpenCV BGR array to PIL Image for the Gemini API
+            first_page_rgb = cv2.cvtColor(first_page_bgr, cv2.COLOR_BGR2RGB)
+            pil_image = Image.fromarray(first_page_rgb)
+
+            self.progress.emit(
+                40,
+                "Extracting data (this may take a few seconds)..."
             )
+
+            # Pass the PIL Image directly to the new recognizer
+            extracted_data = recognizer.process_document(pil_image)
 
 
             # -----------------
-            # PROCESS PAGES
+            # MAP TO EXCEL
             # -----------------
+
+            self.progress.emit(
+                85,
+                "Mapping results to Excel format"
+            )
 
             all_results = []
-
             all_review_items = []
 
-            aligned_pages = []
+            # 1. Map Header Fields
+            header_keys = [
+                "building_name", 
+                "completed_by", 
+                "date", 
+                "building_escort", 
+                "co2_meter_number"
+            ]
 
-            total_pages = len(
-                pages
-            )
+            for key in header_keys:
+                all_results.append({
+                    "page": 1,
+                    "field": key,
+                    "row": None,
+                    "text": extracted_data.get(key, ""),
+                    "confidence": 0.99, # VLMs output structure rather than token probabilities
+                })
 
-
-            for (
-                page_number,
-                page
-            ) in enumerate(
-                pages,
-                start=1
-            ):
-
-                self.status.emit(
-                    (
-                        f"Aligning page "
-                        f"{page_number} "
-                        f"of "
-                        f"{total_pages}"
-                    )
-                )
-
-                aligned = (
-                    deskew_and_warp(
-                        page
-                    )
-                )
-
-                aligned_pages.append(
-                    aligned
-                )
-
-
-                # Send first page to preview.
-                if page_number == 1:
-
-                    self.preview_ready.emit(
-                        aligned
-                    )
-
-
-                def field_progress(
-                    completed,
-                    total,
-                    message
-                ):
-
-                    # OCR occupies 5% to 90%.
-                    page_size = (
-                        85
-                        /
-                        total_pages
-                    )
-
-                    page_base = (
-                        5
-                        +
-                        (
-                            page_number - 1
-                        )
-                        *
-                        page_size
-                    )
-
-                    percent = (
-                        page_base
-                        +
-                        (
-                            completed
-                            /
-                            total
-                        )
-                        *
-                        page_size
-                    )
-
-                    self.progress.emit(
-                        int(percent),
-                        message
-                    )
-
-
-                results, review_items = (
-                    extract_page(
-                        aligned,
-                        recognizer,
-                        page_number=page_number,
-                        progress_callback=field_progress
-                    )
-                )
-
-                all_results.extend(
-                    results
-                )
-
-                all_review_items.extend(
-                    review_items
-                )
+            # 2. Map Table Rows
+            for row_idx, row_dict in enumerate(extracted_data.get("table_data", [])):
+                for field, text in row_dict.items():
+                    if text and str(text).strip():
+                        all_results.append({
+                            "page": 1,
+                            "field": field,
+                            "row": row_idx,
+                            "text": str(text),
+                            "confidence": 0.99,
+                        })
 
 
             # -----------------
@@ -328,15 +271,16 @@ class TranscriptionWorker(
                 )
             )
 
+            # Save the full structured JSON so the margin notes and 
+            # general_notes are preserved, even if not mapped to Excel cells
+            json_output = {
+                "structured_api_data": extracted_data,
+                "excel_mapped_results": all_results,
+            }
+
             json_path.write_text(
                 json.dumps(
-                    {
-                        "results":
-                            all_results,
-
-                        "manual_review":
-                            all_review_items,
-                    },
+                    json_output,
                     indent=2
                 ),
                 encoding="utf-8"
@@ -356,10 +300,6 @@ class TranscriptionWorker(
                 "Transcription complete"
             )
 
-            self.pages_ready.emit(
-                aligned_pages
-            )
-
             self.completed.emit(
                 all_results,
                 all_review_items,
@@ -368,6 +308,12 @@ class TranscriptionWorker(
                 )
             )
 
+        except PermissionError:
+            
+            self.failed.emit(
+                f"Cannot save the Excel file because it is currently open.\n\n"
+                f"Please close '{self.output_path.name}' in Microsoft Excel and try again."
+            )
 
         except Exception as error:
 
@@ -379,8 +325,6 @@ class TranscriptionWorker(
             print(full_error)
             print("=" * 70 + "\n")
 
-            # Some Python exceptions have an empty str(error).
-            # The traceback always contains the actual exception type.
             if not str(error).strip():
                 error_message = (
                     f"{type(error).__name__}: {repr(error)}"
