@@ -64,9 +64,35 @@ def deskew_and_warp(image):
         True
     )
 
-    # If we cannot confidently detect the page,
-    # fall back to resizing.
-    if len(approximation) != 4:
+    image_area = (
+        image.shape[0]
+        *
+        image.shape[1]
+    )
+
+    # A real page boundary should cover almost the whole
+    # frame. If the largest 4-sided contour we found is
+    # much smaller than that, it's not the page - it's some
+    # other strong rectangular feature on the page (e.g. the
+    # data table's own border, which is common on clean,
+    # borderless forms where the true page edge has no ink
+    # for Canny to detect). Trusting it there would warp
+    # just that interior region to fill the whole canonical
+    # frame, scrambling every fixed-coordinate crop that
+    # follows. Fall back to a plain resize instead.
+    MIN_PAGE_AREA_FRACTION = 0.85
+
+    area_fraction = (
+        cv2.contourArea(largest)
+        /
+        image_area
+    )
+
+    if (
+        len(approximation) != 4
+        or
+        area_fraction < MIN_PAGE_AREA_FRACTION
+    ):
         return cv2.resize(
             image,
             (

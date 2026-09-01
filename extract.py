@@ -190,13 +190,13 @@ def extract_page(
         MAX_ROWS
     ):
 
-        y1 = (
+        y1 = round(
             ROW_START_Y
             +
             row * ROW_HEIGHT
         )
 
-        y2 = (
+        y2 = round(
             y1
             +
             ROW_HEIGHT

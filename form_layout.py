@@ -1,44 +1,71 @@
-CANONICAL_WIDTH = 1224
-CANONICAL_HEIGHT = 1584
+# -----------------------------
+# CANONICAL PAGE SIZE
+# -----------------------------
+#
+# IMPORTANT: This form is a LANDSCAPE-oriented Letter page
+# (792 x 612 pt), not portrait. At the 2x zoom used in
+# main.py / worker.py (pymupdf.Matrix(2, 2)), a 792x612pt
+# page renders to 1584x1224 pixels (144 DPI).
+#
+# All coordinates below were measured directly on that
+# 1584x1224 render. If you ever change the zoom factor in
+# main.py/worker.py, these numbers (and the ones below)
+# must be rescaled accordingly.
+
+CANONICAL_WIDTH = 1584
+CANONICAL_HEIGHT = 1224
 
 
 # -----------------------------
 # HEADER HANDWRITING FIELDS
 # -----------------------------
+# Each box sits just above the printed underline for that
+# field, wide enough to catch the full handwritten answer.
 
 HEADER_FIELDS = {
-    "building_name": (205, 118, 665, 145),
-    "completed_by": (205, 177, 665, 205),
-    "date": (205, 237, 665, 265),
-    "building_escort": (205, 297, 665, 325),
-    "co2_meter_number": (205, 357, 665, 385),
+    "building_name": (255, 117, 670, 151),
+    "completed_by": (255, 152, 670, 186),
+    "date": (255, 185, 670, 219),
+    "building_escort": (255, 219, 725, 253),
+    "co2_meter_number": (255, 249, 670, 283),
 }
 
 
 # -----------------------------
 # TABLE COLUMNS
 # -----------------------------
+# x-boundaries measured from the table's vertical grid
+# lines. Only x1/x2 from each tuple are actually used for
+# columns; y1/y2 here are placeholders (extract.py builds
+# the real y-range per-row from ROW_START_Y / ROW_HEIGHT).
 
 COLUMNS = {
-    "floor": (97, 379, 204, 1223),
-    "space": (205, 379, 402, 1223),
-    "light_fc": (403, 379, 490, 1223),
-    "temp_f": (491, 379, 580, 1223),
-    "rh_pct": (581, 379, 668, 1223),
-    "time": (669, 379, 759, 1223),
-    "co2_ppm": (760, 379, 854, 1223),
-    "voc_ug_m3": (855, 379, 951, 1223),
-    "comments": (952, 379, 1347, 1223),
+    "floor": (141, 363, 258, 1099),
+    "space": (258, 363, 471, 1099),
+    "light_fc": (471, 363, 568, 1099),
+    "temp_f": (568, 363, 665, 1099),
+    "rh_pct": (665, 363, 763, 1099),
+    "time": (763, 363, 861, 1099),
+    "co2_ppm": (861, 363, 963, 1099),
+    "voc_ug_m3": (963, 363, 1069, 1099),
+    "comments": (1069, 363, 1496, 1099),
 }
 
 
 # -----------------------------
 # ROW INFORMATION
 # -----------------------------
+# The table has exactly 22 data rows (the printed "Outside
+# Air" row plus 21 blank rows below it), running from the
+# bottom of the sub-header row (y=363) to the table's
+# bottom border (y=1099). That's (1099 - 363) / 22 = 33.45px
+# per row - kept as a float and rounded when building each
+# crop box (see extract.py) to avoid cumulative drift by
+# the last row.
 
-ROW_START_Y = 380
-ROW_HEIGHT = 31
-MAX_ROWS = 27
+ROW_START_Y = 363
+ROW_HEIGHT = 33.45
+MAX_ROWS = 22
 
 SKIP_FIRST_DATA_ROW = False
 
