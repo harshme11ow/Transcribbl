@@ -16,23 +16,15 @@ from preprocess import prepare_crop
 
 def crop_image(
     image,
-    box,
-    padding_x=12,
-    padding_y=0
+    box
 ):
     """
-    Crops the image using the provided coordinates.
-    Horizontal padding is applied to capture word ends, but 
-    vertical padding is kept strictly to 0 to prevent the crop 
-    box from bleeding into adjacent rows, which causes TrOCR 
-    to read vertically stacked values in a single cell.
+    Crops the image using the exact provided coordinates.
+    Horizontal padding has been removed so we don't capture
+    the vertical grid lines of adjacent cells.
     """
-    x1, y1, x2, y2 = box
 
-    x1 = max(0, x1 - padding_x)
-    y1 = max(0, y1 - padding_y)
-    x2 = min(image.shape[1], x2 + padding_x)
-    y2 = min(image.shape[0], y2 + padding_y)
+    x1, y1, x2, y2 = box
 
     return image[
         y1:y2,

@@ -63,13 +63,12 @@ def prepare_crop(crop):
 
     h, w = crop.shape[:2]
     
-    # 1. Aggressively shave off the outer pixels to drop printed table grid lines.
-    # The printed lines are thicker than 2 pixels, so we increase the margin 
-    # to 6px horizontally and 4px vertically to ensure they are completely erased.
-    margin_x = 6
-    margin_y = 4
-    if h > 2 * margin_y and w > 2 * margin_x:
-        crop = crop[margin_y:h-margin_y, margin_x:w-margin_x]
+    # 1. Shave off the outer 3 pixels to drop printed table grid lines.
+    # Because we crop exactly to the cell boundaries, the grid lines are 
+    # right on the edge. Shaving 3 pixels ensures they are completely erased.
+    margin = 3
+    if h > 2 * margin and w > 2 * margin:
+        crop = crop[margin:h-margin, margin:w-margin]
 
     # 2. Add a generous white border. TrOCR requires surrounding whitespace. 
     pad = 16
