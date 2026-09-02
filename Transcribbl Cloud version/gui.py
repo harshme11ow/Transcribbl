@@ -30,7 +30,7 @@ class Window(QMainWindow):
         self.path=None; self.results=[]; self.output=None; self.worker=None
         w=QWidget(); self.setCentralWidget(w); o=QVBoxLayout(w); o.setContentsMargins(28,24,28,24); o.setSpacing(18)
         h=QHBoxLayout(); box=QVBoxLayout(); title=QLabel("Transcribbl - Servidyne's Environmental Form Transcriber"); title.setStyleSheet('font-size:25px;font-weight:700')
-        sub=QLabel('Local handwriting recognition • fixed-form extraction • confidence review'); sub.setStyleSheet('color:#667085')
+        sub=QLabel('Cloud-Based handwriting recognition • fixed-form extraction • confidence review'); sub.setStyleSheet('color:#667085')
         box.addWidget(title); box.addWidget(sub); h.addLayout(box); h.addStretch()
         self.pick=QPushButton('Select Handwritten PDF'); self.pick.setObjectName('secondary'); self.pick.clicked.connect(self.select)
         self.run=QPushButton('Transcribe Form'); self.run.setObjectName('primary'); self.run.setEnabled(False); self.run.clicked.connect(self.start)

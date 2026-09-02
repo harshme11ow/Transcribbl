@@ -2,16 +2,18 @@ import google.generativeai as genai
 from pydantic import BaseModel, Field
 import json
 
-# Replace with your actual API key
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
 
 import os
 from dotenv import load_dotenv
-
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+api_key = os.getenv("GEMINI_API_KEY")
+if not api_key:
+    raise ValueError("GEMINI_API_KEY not found. Please set it in your .env file.")
+
 genai.configure(api_key=api_key)
 
 class TableRow(BaseModel):
