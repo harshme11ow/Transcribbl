@@ -3,17 +3,63 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QThread, Signal, QUrl
 from PySide6.QtGui import QPixmap, QImage, QDesktopServices
 from PySide6.QtWidgets import *
+from PySide6.QtCore import QSettings
+from PySide6.QtWidgets import (
+    QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QHBoxLayout, QMessageBox
+)
 
 # This GUI is intentionally separated from the recognition engine. Import your
 # existing extraction pipeline here as it is refined.
-try:
-    from worker import TranscriptionWorker
-except Exception:
-    TranscriptionWorker = None
+from worker import TranscriptionWorker
 
 REVIEW = .82
 CHECK = .92
 STYLE='''QMainWindow{background:#f5f7fb} QWidget{font-family:Segoe UI;color:#172033} QFrame#card{background:white;border:1px solid #dfe3ea;border-radius:12px} QPushButton#primary{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 18px;font-weight:600} QPushButton#secondary{background:white;border:1px solid #cfd6e0;border-radius:8px;padding:10px 18px} QProgressBar{border:0;border-radius:7px;background:#e8edf5;height:14px} QProgressBar::chunk{background:#2563eb;border-radius:7px} QTableWidget{background:white;border:1px solid #dfe3ea;border-radius:10px} QHeaderView::section{background:#f7f8fa;border:0;border-bottom:1px solid #dfe3ea;padding:8px;font-weight:600}'''
+
+class SettingsDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("API Configuration")
+        self.setFixedSize(450, 150)
+        
+        # QSettings automatically saves to the Windows Registry under the current user profile
+        self.settings = QSettings("MySoftwareCo", "Transcribbl")
+        
+        layout = QVBoxLayout(self)
+        
+        self.info_label = QLabel("Enter your Google Gemini API Key:")
+        layout.addWidget(self.info_label)
+        
+        self.key_input = QLineEdit()
+        self.key_input.setEchoMode(QLineEdit.Password)
+        self.key_input.setPlaceholderText("AIzaSy...")
+        
+        # Load existing key if they have already saved one
+        saved_key = self.settings.value("api_key", "")
+        if saved_key:
+            self.key_input.setText(saved_key)
+            
+        layout.addWidget(self.key_input)
+        
+        button_layout = QHBoxLayout()
+        self.save_btn = QPushButton("Save")
+        self.cancel_btn = QPushButton("Cancel")
+        
+        self.save_btn.clicked.connect(self.save_key)
+        self.cancel_btn.clicked.connect(self.reject)
+        
+        button_layout.addWidget(self.save_btn)
+        button_layout.addWidget(self.cancel_btn)
+        layout.addLayout(button_layout)
+
+    def save_key(self):
+        key = self.key_input.text().strip()
+        if not key:
+            QMessageBox.warning(self, "Error", "API Key cannot be empty.")
+            return
+            
+        self.settings.setValue("api_key", key)
+        self.accept()
 
 class Card(QFrame):
     def __init__(self,title):

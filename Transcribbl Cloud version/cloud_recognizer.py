@@ -1,20 +1,14 @@
-import google.generativeai as genai
-from pydantic import BaseModel, Field
+import os
 import json
-
-import os
-import google.generativeai as genai
 from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+from pydantic import BaseModel, Field
 
-import os
-from dotenv import load_dotenv
+# Load the API key from the local .env file
 load_dotenv()
-
-api_key = os.getenv("GEMINI_API_KEY")
-if not api_key:
-    raise ValueError("GEMINI_API_KEY not found. Please set it in your .env file.")
-
-genai.configure(api_key=api_key)
+if not os.getenv("GEMINI_API_KEY"):
+    raise ValueError("GEMINI_API_KEY not found. Please create a .env file on this computer.")
 
 class TableRow(BaseModel):
     floor: str = Field(description="Floor number or identifier. Blank string if empty.")
@@ -38,11 +32,10 @@ class FormExtraction(BaseModel):
 
 class CloudFormRecognizer:
     def __init__(self):
-        # Hardcoding the explicitly required 3.6-flash model
-        selected_model_name = "gemini-3.6-flash"
-        
-        print(f"Using Cloud Vision model: {selected_model_name}")
-        self.model = genai.GenerativeModel(selected_model_name)
+        # The new SDK uses a Client object that automatically detects GEMINI_API_KEY in the environment
+        self.client = genai.Client()
+        self.model_name = "gemini-3.6-flash"
+        print(f"Using Cloud Vision model: {self.model_name}")
 
     def process_document(self, img):
         prompt = (
@@ -53,9 +46,11 @@ class CloudFormRecognizer:
             "Return exact handwritten values faithfully."
         )
 
-        response = self.model.generate_content(
-            [prompt, img],
-            generation_config=genai.GenerationConfig(
+        # The generate_content method is now located under client.models
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=[prompt, img],
+            config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=FormExtraction,
                 temperature=0.1
