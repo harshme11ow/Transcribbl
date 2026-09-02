@@ -8,6 +8,8 @@ from PySide6.QtWidgets import *
 from worker import TranscriptionWorker
 
 REVIEW = .82
+CHECK = 0.95
+
 STYLE='''QMainWindow{background:#f5f7fb} QWidget{font-family:Segoe UI;color:#172033} QFrame#card{background:white;border:1px solid #dfe3ea;border-radius:12px} QPushButton#primary{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 18px;font-weight:600} QPushButton#secondary{background:white;border:1px solid #cfd6e0;border-radius:8px;padding:10px 18px} QProgressBar{border:0;border-radius:7px;background:#e8edf5;height:14px} QProgressBar::chunk{background:#2563eb;border-radius:7px} QTableWidget{background:white;border:1px solid #dfe3ea;border-radius:10px} QHeaderView::section{background:#f7f8fa;border:0;border-bottom:1px solid #dfe3ea;padding:8px;font-weight:600}'''
 
 class Card(QFrame):
