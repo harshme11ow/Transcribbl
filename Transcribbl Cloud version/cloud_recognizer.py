@@ -4,11 +4,10 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
+from PySide6.QtCore import QSettings
 
-# Load the API key from the local .env file
 load_dotenv()
-if not os.getenv("GEMINI_API_KEY"):
-    raise ValueError("GEMINI_API_KEY not found. Please create a .env file on this computer.")
+
 
 class TableRow(BaseModel):
     floor: str = Field(description="Floor number or identifier. Blank string if empty.")
@@ -21,6 +20,7 @@ class TableRow(BaseModel):
     voc_ug_m3: str = Field(description="VOC reading. Blank string if empty.")
     comments: str = Field(description="Row comments. Blank string if empty.")
 
+
 class FormExtraction(BaseModel):
     building_name: str = Field(description="Building Name header. Blank string if empty.")
     completed_by: str = Field(description="Completed By header. Blank string if empty.")
@@ -30,10 +30,20 @@ class FormExtraction(BaseModel):
     general_notes: str = Field(description="Any floating handwritten margin notes outside the table (e.g. signage observations).")
     table_data: list[TableRow] = Field(description="List of table rows.")
 
+
 class CloudFormRecognizer:
-    def __init__(self):
-        # The new SDK uses a Client object that automatically detects GEMINI_API_KEY in the environment
-        self.client = genai.Client()
+    def __init__(self, api_key: str = None):
+        if not api_key:
+            settings = QSettings("MySoftwareCo", "Transcribbl")
+            api_key = settings.value("api_key", "")
+
+        if not api_key:
+            api_key = os.getenv("GEMINI_API_KEY", "")
+
+        if not api_key:
+            raise ValueError("API Key not configured. Please enter it in the Settings menu.")
+
+        self.client = genai.Client(api_key=api_key)
         self.model_name = "gemini-3.6-flash"
         print(f"Using Cloud Vision model: {self.model_name}")
 
@@ -46,14 +56,13 @@ class CloudFormRecognizer:
             "Return exact handwritten values faithfully."
         )
 
-        # The generate_content method is now located under client.models
         response = self.client.models.generate_content(
             model=self.model_name,
             contents=[prompt, img],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=FormExtraction,
-                temperature=0.1
+                temperature=0.1,
             ),
         )
 
